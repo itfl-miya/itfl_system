@@ -1,0 +1,71 @@
+# system_app/forms.py
+from django import forms
+from .models import Freelancer, BusinessPartner
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm
+
+class FreelancerForm(forms.ModelForm):
+    class Meta:
+        model = Freelancer
+        fields = '__all__'  # モデルにある項目をすべて自動で使う設定
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            # 日付入力欄だけカレンダー形式にする
+            if field.label in ["開始日", "終了日"]:
+                field.widget = forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+            else:
+                field.widget.attrs.update({'class': 'form-control'})
+
+# system_app/forms.py
+from .models import TaskStatus
+
+class TaskStatusForm(forms.ModelForm):
+    class Meta:
+        model = TaskStatus
+        fields = ['status', 'working_hours', 'payment_amount', 'google_drive_url']
+        widgets = {
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'working_hours': forms.NumberInput(attrs={'class': 'form-control'}),
+            'payment_amount': forms.NumberInput(attrs={'class': 'form-control'}),
+            'actual_working_hours': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
+            'google_drive_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+        }
+
+
+class JapaneseUserCreationForm(UserCreationForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 全フィールドにBootstrapのクラスを一括適用（views.pyでやるよりスマートです）
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'
+        
+        # ユーザー名のヘルプテキストを日本語に上書き
+        self.fields['username'].help_text = (
+            "必須項目です。150文字以内の半角英数字、および「@/./+/-/_」が使用可能です。"
+        )
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ("username",) # 必要に応じて "email" なども追加可能
+
+class BusinessPartnerForm(forms.ModelForm):
+    class Meta:
+        model = BusinessPartner
+        fields = [
+            'name', 'contact_person', 'base_unit_price', 
+            'lower_limit_hours', 'upper_limit_hours', 
+            'overtime_unit_price', 'deduction_unit_price', 'is_active'
+        ]
+        # デザイン（Bootstrap）を適用するための設定
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '株式会社〇〇'}),
+            'contact_person': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '田中 太郎'}),
+            'base_unit_price': forms.NumberInput(attrs={'class': 'form-control'}),
+            'lower_limit_hours': forms.NumberInput(attrs={'class': 'form-control'}),
+            'upper_limit_hours': forms.NumberInput(attrs={'class': 'form-control'}),
+            'overtime_unit_price': forms.NumberInput(attrs={'class': 'form-control'}),
+            'deduction_unit_price': forms.NumberInput(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }

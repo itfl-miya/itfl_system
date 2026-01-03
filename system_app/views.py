@@ -1,0 +1,263 @@
+# system_app/views.py
+import os
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from .models import MonthlyProcess, TaskStatus, Freelancer, PurchaseOrder, BusinessPartner
+from .forms import FreelancerForm, TaskStatusForm, BusinessPartnerForm
+from django.utils import timezone
+
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm, UserChangeForm
+from django.contrib.admin.views.decorators import staff_member_required
+from .forms import JapaneseUserCreationForm
+
+from django.http import FileResponse, Http404
+from .services.email_service import sync_purchase_orders_from_mail
+from .services.email_service import search_and_sync_emails # 検索用サービス
+
+
+def index(request):
+    return render(request, 'index.html')
+
+@login_required  # ログインしていない人がアクセスしたらログイン画面に飛ばす設定
+def menu(request):
+    return render(request, 'menu.html')
+
+# ユーザー一覧（管理者のみアクセス可能にする）
+@staff_member_required
+def user_list(request):
+    users = User.objects.all()
+    return render(request, 'user_list.html', {'users': users})
+
+# ユーザー新規登録
+@staff_member_required
+def user_create(request):
+    if request.method == 'POST':
+        # 日本語版フォームを使用
+        form = JapaneseUserCreationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('user_list')
+    else:
+        # 日本語版フォームを使用
+        form = JapaneseUserCreationForm()
+    return render(request, 'user_form.html', {'form': form, 'title': 'ユーザー新規登録'})
+
+# ユーザー編集（権限変更など）
+@staff_member_required
+def user_edit(request, pk):
+    user = get_object_or_404(User, pk=pk)
+    if request.method == 'POST':
+        # ユーザー情報の変更用フォーム
+        form = UserChangeForm(request.POST, instance=user)
+        if form.is_valid():
+            form.save()
+            return redirect('user_list')
+    else:
+        form = UserChangeForm(instance=user)
+    return render(request, 'user_form.html', {'form': form, 'title': 'ユーザー情報の変更'})
+
+# フリーランサー一覧
+@login_required
+def freelancer_list(request):
+    # データベースから全データを取得
+    freelancers = Freelancer.objects.all()
+    return render(request, 'freelancer_list.html', {'freelancers': freelancers})
+
+@login_required
+def freelancer_create(request):
+    if request.method == 'POST':
+        form = FreelancerForm(request.POST)
+        if form.is_valid():
+            form.save() # データベースに保存
+            return redirect('freelancer_list') # 一覧画面に自動で戻る
+    else:
+        form = FreelancerForm()
+    
+    return render(request, 'freelancer_form.html', {'form': form})
+
+# --- 編集処理 ---
+@login_required
+def freelancer_update(request, pk):
+    # ID(pk)に該当するデータを取得、なければ404エラーを出す
+    freelancer = get_object_or_404(Freelancer, pk=pk)
+    
+    if request.method == 'POST':
+        # 取得したデータ(instance)を元にフォームを作成
+        form = FreelancerForm(request.POST, instance=freelancer)
+        if form.is_valid():
+            form.save()
+            return redirect('freelancer_list')
+    else:
+        # 既存データが入った状態のフォームを表示
+        form = FreelancerForm(instance=freelancer)
+    
+    return render(request, 'freelancer_form.html', {'form': form, 'update': True})
+
+# --- 削除処理 ---
+@login_required
+def freelancer_delete(request, pk):
+    freelancer = get_object_or_404(Freelancer, pk=pk)
+    if request.method == 'POST':
+        freelancer.delete()
+        return redirect('freelancer_list')
+    return render(request, 'freelancer_confirm_delete.html', {'freelancer': freelancer})
+
+# 親：月次一覧画面
+@login_required
+def monthly_list(request):
+    # データベースから全データを取得
+    processes = MonthlyProcess.objects.all().order_by('-year_month')
+    
+    # テンプレートに渡す（左側の 'processes' がHTMLで使う名前になります）
+    return render(request, 'monthly_list.html', {'processes': processes})
+
+
+# 子：その月の個人別進捗画面
+@login_required
+def monthly_detail(request, pk):
+    # 1. 該当する月次プロセスを取得
+    monthly_process = get_object_or_404(MonthlyProcess, pk=pk)
+    
+    # 2. そのプロセスに紐づく「全員分の進捗データ」を取得
+    # monthly_process=monthly_process となっているか確認！
+    task_statuses = TaskStatus.objects.filter(monthly_process=monthly_process)
+    # この月に紐づく全個人の進捗を取得
+    return render(request, 'monthly_detail.html', {
+        'monthly_process': monthly_process,
+        'task_statuses': task_statuses,
+    })
+
+@login_required
+def create_monthly_batch(request):
+    if request.method == 'POST':
+        # 現在の年月を取得（例: 2025-01-01）
+        now = timezone.now()
+        first_day_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # すでにその月のデータがあるか確認、なければ作成
+        monthly_process, created = MonthlyProcess.objects.get_or_create(
+            year_month=first_day_of_month
+        )
+        
+        # 登録されている全個人事業主を取得
+        freelancers = Freelancer.objects.all()
+        
+        # 各個人事業主の進捗レコードを作成（すでに存在する場合は作成しない）
+        for freelancer in freelancers:
+            TaskStatus.objects.get_or_create(
+                monthly_process=monthly_process,
+                freelancer=freelancer
+            )
+            
+        return redirect('monthly_list')
+    
+    return redirect('monthly_list')
+
+
+@login_required
+def task_update(request, pk):
+    task = get_object_or_404(TaskStatus, pk=pk)
+    if request.method == 'POST':
+        form = TaskStatusForm(request.POST, instance=task)
+        if form.is_valid():
+            form.save()
+            # 更新後、元の月次詳細画面に戻る
+            return redirect('monthly_detail', pk=task.monthly_process.pk)
+    else:
+        form = TaskStatusForm(instance=task)
+    
+    return render(request, 'task_form.html', {'form': form, 'task': task})
+
+# 注文書
+# 1. 一覧表示（これがエラーの原因です）
+def purchase_order_list(request):
+    orders = PurchaseOrder.objects.all().order_by('-received_at')
+    return render(request, 'purchase_order_list.html', {'purchase_orders': orders})
+
+# 2. ダウンロード処理
+def po_download(request, pk):
+    order = get_object_or_404(PurchaseOrder, pk=pk)
+    if not order.file:
+        raise Http404("ファイルが見つかりません")
+    
+    order.download_count += 1
+    order.save()
+    
+    return FileResponse(open(order.file.path, 'rb'), as_attachment=True)
+
+# 3. 削除処理
+def po_delete(request, pk):
+    order = get_object_or_404(PurchaseOrder, pk=pk)
+    order.delete()
+    return redirect('purchase_order_list')
+
+# 4. 同期実行の橋渡し（email_serviceを呼び出す）
+def sync_mail_view(request):
+    # ここでメール同期ロジックを呼び出す（後ほど作成）
+    # sync_purchase_orders_from_mail() 
+    return redirect('purchase_order_list')
+
+def download_purchase_order(request, pk):
+    po = get_object_or_404(PurchaseOrder, pk=pk)
+    # カウントを増やす
+    po.download_count += 1
+    po.save()
+    # ファイルを返す
+    return FileResponse(open(po.file.path, 'rb'), as_attachment=True)
+
+def po_search_view(request):
+    # 1. 選択肢として表示するマスタデータを取得
+    freelancers = Freelancer.objects.all().values_list('name', flat=True)
+    #partners = BusinessPartner.objects.all().values_list('name', flat=True)
+    
+    # 選択肢を1つのリストにまとめる（重複削除）
+    client_choices = sorted(list(set(list(freelancers))))
+
+    if request.method == 'POST':
+        # 2. フォームから送信された条件を取得
+        client_name = request.POST.get('client_name')
+        start_date = request.POST.get('start_date') # yyyy-mm-dd
+        end_date = request.POST.get('end_date')
+
+        # 3. 条件をもとにメール検索を実行（後述のサービスを呼び出し）
+        result_message = search_and_sync_emails(client_name, start_date, end_date)
+        
+        # 完了後、一覧画面へ（メッセージを持っていく）
+        return render(request, 'purchase_order_list.html', {
+            'purchase_orders': PurchaseOrder.objects.all().order_by('-received_at'),
+            'message': result_message
+        })
+
+    return render(request, 'po_search.html', {'client_choices': client_choices})
+
+# 提携パートナー
+# 一覧表示
+def partner_list(request):
+    partners = BusinessPartner.objects.all().order_by('-created_at')
+    return render(request, 'partner_list.html', {'partners': partners})
+
+# 詳細/編集（簡易版）
+def partner_detail(request, pk=None):
+    if pk:
+        partner = get_object_or_404(BusinessPartner, pk=pk)
+    else:
+        partner = None
+    
+    if request.method == "POST":
+        # 本来はFormクラスを使うのがベストですが、一旦簡易的に取得
+        name = request.POST.get('name')
+        base_unit_price = request.POST.get('base_unit_price')
+        # ... 他の項目も同様に取得 ...
+        
+        BusinessPartner.objects.update_or_create(
+            pk=pk,
+            defaults={
+                'name': name,
+                'base_unit_price': base_unit_price,
+                # ... 
+            }
+        )
+        return redirect('partner_list')
+        
+    return render(request, 'partner_detail.html', {'partner': partner})

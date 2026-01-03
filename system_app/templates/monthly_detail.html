@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'menu' %}">メニュー</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'monthly_list' %}">月次一覧</a></li>
+            <li class="breadcrumb-item active">{{ monthly_process.year }}年{{ monthly_process.month }}月 詳細</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>{{ monthly_process.year }}年{{ monthly_process.month }}月 の進捗状況</h2>
+        <span class="badge {% if monthly_process.is_completed %}bg-success{% else %}bg-warning text-dark{% endif %} fs-5">
+            {% if monthly_process.is_completed %}完了{% else %}進行中{% endif %}
+        </span>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>氏名</th>
+                        <th>ステータス</th>
+                        <th>稼働時間</th>
+                        <th>精算条件 (h)</th>
+                        <th>請求予定額</th>
+                        <th class="text-center">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for status in task_statuses %}
+                    <tr {% if status.actual_working_hours == 0 %}class="table-light text-muted"{% endif %}>
+                        <td>
+                            <div class="fw-bold">{{ status.freelancer.name }}</div>
+                            <small>{{ status.freelancer.client_name }}</small>
+                        </td>
+                        <td>
+                            {% if status.status == 'completed' %}
+                                <span class="badge bg-success">完了</span>
+                            {% elif status.status == 'working' %}
+                                <span class="badge bg-primary">書類待ち</span>
+                            {% else %}
+                                <span class="badge bg-secondary">未着手</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if status.actual_working_hours > 0 %}
+                                <span class="fw-bold text-primary">{{ status.actual_working_hours }} h</span>
+                            {% else %}
+                                <span class="text-muted">---</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted">
+                                {{ status.freelancer.lower_limit_hours }} 〜 {{ status.freelancer.upper_limit_hours }}
+                            </small>
+                        </td>
+                        <td class="fw-bold">
+                            {% if status.calculated_amount > 0 %}
+                                {{ status.calculated_amount|intcomma }} 円
+                            {% else %}
+                                <span class="text-muted">---</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <a href="{% url 'task_update' status.pk %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-pencil-square"></i> 入力・更新
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">データがありません。</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mt-4 text-end">
+        <a href="{% url 'monthly_list' %}" class="btn btn-secondary">一覧に戻る</a>
+    </div>
+</div>
+{% endblock %}

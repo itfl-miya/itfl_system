@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>注文書アーカイブ</h2>
+    <div class="mb-3 text-end">
+        <a href="{% url 'po_search' %}" class="btn btn-success">メールを検索</a>
+    </div>
+    <table class="table table-bordered shadow-sm">
+        <thead class="table-light">
+            <tr>
+                <th>クライアント名</th>
+                <th>メール受信日</th>
+                <th>保存日</th>
+                <th>DL回数</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for po in purchase_orders %}
+            <tr>
+                <td>{{ po.client_name }}</td>
+                <td>{{ po.received_at|date:"Y/m/d H:i" }}</td>
+                <td>{{ po.saved_at|date:"Y/m/d" }}</td>
+                <td><span class="badge bg-info">{{ po.download_count }}回</span></td>
+                <td>
+                    <a href="{% url 'po_download' po.pk %}" class="btn btn-sm btn-primary">ダウンロード</a>
+                    <a href="{% url 'po_delete' po.pk %}" class="btn btn-sm btn-danger" onclick="return confirm('本当に削除しますか？')">削除</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

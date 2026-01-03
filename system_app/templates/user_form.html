@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-body">
+                    <h4 class="mb-4">{{ title }}</h4>
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% for field in form %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                {{ field.label }}
+                                {% if field.help_text %}
+                                    <i class="bi bi-question-circle text-muted" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-placement="top" 
+                                       title="{{ field.help_text|striptags }}">
+                                    </i>
+                                {% endif %}
+                            </label>
+                            
+                            <div class="{% if field.errors %}is-invalid{% endif %}">
+                                {{ field }}
+                            </div>
+
+                            {% for error in field.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-success w-100">保存する</button>
+                            <a href="{% url 'user_list' %}" class="btn btn-link w-100 mt-2">キャンセル</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

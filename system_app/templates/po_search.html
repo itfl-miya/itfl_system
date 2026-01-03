@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0"><i class="bi bi-search me-2"></i>注文書メールを検索して取り込む</h4>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                {% csrf_token %}
+                <div class="row g-3">
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">クライアント名 (マスタから選択または入力)</label>
+                        <input class="form-control" list="clientOptions" name="client_name" placeholder="名前を入力または選択してください..." required>
+                        <datalist id="clientOptions">
+                            {% for name in client_choices %}
+                            <option value="{{ name }}">
+                            {% endfor %}
+                        </datalist>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">開始日</label>
+                        <input type="date" class="form-control" name="start_date">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">終了日</label>
+                        <input type="date" class="form-control" name="end_date">
+                    </div>
+                </div>
+
+                <div class="mt-4 text-center">
+                    <a href="{% url 'purchase_order_list' %}" class="btn btn-secondary me-2">キャンセル</a>
+                    <button type="submit" class="btn btn-primary px-5">メールを検索する</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
