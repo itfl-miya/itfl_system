@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,9 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-m%a86_2f0$%x5iwp__+f2gige190w^!@pb$wyx(gi(j-07&+i9'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["85.131.247.235", "localhost", "itfl-kanri.jp"]
 
 
 # Application definition
@@ -129,3 +130,5 @@ LOGIN_REDIRECT_URL = 'menu'
 
 # myproject/settings.py
 LANGUAGE_CODE = 'ja'  # ここが 'ja' になっていれば、標準のエラーは日本語化されます
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
